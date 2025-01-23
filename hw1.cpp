@@ -3,17 +3,29 @@
 #include <cstdlib>
 #include <ctime>
 #include <vector>
-#include <mutex> // Include the mutex header for locking
+#include <mutex>
+#include <random>
+#include <thread>
+#include <chrono>
 
 std::mutex bankMutex;    // declare a global mutex to protect the bank accounts (coarse-grained)
 std::mutex balanceMutex; // mutex to protect balance calculation (coarse-grained)
+
+// Courtesy of Nicholas Thomas, Generates a random int between min and max (inclusive)
+int generateRandomInt(int min, int max)
+{
+    thread_local static std::random_device rd;         // creates random device (unique to each thread to prevent race cons) (static to avoid reinitialization)
+    thread_local static std::mt19937 gen(rd());        // Seeding the RNG (unique to each thread to prevent race cons) (static to avoid reinitialization)
+    std::uniform_int_distribution<> distrib(min, max); // Create uniform int dist between min and max (inclusive)
+
+    return distrib(gen); // Generate random number from the uniform int dist (inclusive)
+}
 
 void deposit(std::map<int, float> &bankAccounts, int account1, int account2, float amount)
 {
     // lock the mutex to ensure atomic access to the bank accounts
     // RAII-style lock, meaning that it will automatically release the lock when it goes out of scope (which happens at the end of the deposit function).
     std::lock_guard<std::mutex> lock(bankMutex);
-    // subtract amount from account1 and add it to account2
     bankAccounts[account1] -= amount; // subtract from account1
     bankAccounts[account2] += amount; // add to account2
 }
@@ -33,27 +45,23 @@ float balance(std::map<int, float> &bankAccounts)
 
 void do_work(std::map<int, float> &bankAccounts, int iterations, float &exec_time_i)
 {
-    // measuring execution time
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now(); // start measuring time
 
-    std::srand(std::time(0)); // seed the random number generator
-    // create an accountIDs vector inside do_work
     std::vector<int> accountIDs;
     for (const auto &account : bankAccounts)
     {
-        accountIDs.push_back(account.first); // Add account IDs to vector
+        accountIDs.push_back(account.first); // collect all account IDs into this vector
     }
 
     for (int i = 0; i < iterations; ++i)
     {
-        //  call deposit or balance?
-        if (std::rand() % 100 < 95) // 95% probability for deposit
+        if (generateRandomInt(0, 99) < 95) // 95% probability for deposit
         {
-            int randomIndex1 = std::rand() % accountIDs.size();
-            int randomIndex2 = std::rand() % accountIDs.size();
+            int randomIndex1 = generateRandomInt(0, accountIDs.size() - 1);
+            int randomIndex2 = generateRandomInt(0, accountIDs.size() - 1);
             while (randomIndex1 == randomIndex2)
             {
-                randomIndex2 = std::rand() % accountIDs.size(); // Ensure indices are different
+                randomIndex2 = generateRandomInt(0, accountIDs.size() - 1); // make sure indices are different
             }
             deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
         }
@@ -63,20 +71,14 @@ void do_work(std::map<int, float> &bankAccounts, int iterations, float &exec_tim
         }
     }
 
-    // Measure the time after all iterations
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<float> duration = end - start;
-    exec_time_i = duration.count(); // Store the execution time in exec_time_i
+    auto end = std::chrono::high_resolution_clock::now(); // end measuring time
+    std::chrono::duration<float> duration = end - start;  // calculate elapsed time
+    exec_time_i = duration.count();                       // store it in exec_time_i for now
 }
 
 int main()
 {
     // Step 1: Define a map where each account has a unique ID (int) and a balance (float)
-    // std::map has automatic uniqueness, efficient lookups, ordered keys, and memory management
-    // std::unordered_map is fast for lookups, you lose the automatic sorting of keys (account IDs) that you get with std::map
-    // std::vector is simple, but it's inefficient for large numbers of accounts due to the linear search for lookups. managing uniqueness and ordering would add extra work
-    // std::list has additional overhead for managing a doubly-linked list and manually manage ordering and uniqueness
-    // std:array or std::vector with fixed size would need account IDs need to be mapped to valid array indices, and the size must be known beforehand or managed manually
     std::map<int, float> bankAccounts;
     std::cout << "\nMap of bank accounts has been created!" << std::endl;
 
@@ -108,31 +110,6 @@ int main()
     float initialBalance = balance(bankAccounts);
     std::cout << "Total balance of all accounts: " << initialBalance << std::endl;
 
-    // Step 3
-    // std::srand(std::time(0)); // Seed the random number generator with current time
-    // // Get account IDs into a vector for random selection
-    // std::vector<int> accountIDs;
-    // for (const auto &account : bankAccounts)
-    // {
-    //     accountIDs.push_back(account.first); // Add account IDs to vector
-    // }
-
-    // // generate two random indices to select accounts
-    // int randomIndex1 = std::rand() % accountIDs.size(); // random index between 0 and size-1
-    // int randomIndex2 = std::rand() % accountIDs.size(); // another random index
-    // while (randomIndex1 == randomIndex2)
-    // { // make sure both indices are not the same
-    //     randomIndex2 = std::rand() % accountIDs.size();
-    // }
-    // // perform the deposit
-    // deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
-    // // print the updated balances
-    // std::cout << "Updated bank account balances:" << std::endl;
-    // for (const auto &account : bankAccounts)
-    // {
-    //     std::cout << "Account ID: " << account.first << ", Balance: " << account.second << std::endl;
-    // }
-
     // Step 4
     float finalBalance = balance(bankAccounts);
     std::cout << "Total balance of all accounts after deposit: " << finalBalance << std::endl;
@@ -140,3 +117,34 @@ int main()
 
     return 0;
 }
+
+// std::map has automatic uniqueness, efficient lookups, ordered keys, and memory management
+// std::unordered_map is fast for lookups, you lose the automatic sorting of keys (account IDs) that you get with std::map
+// std::vector is simple, but it's inefficient for large numbers of accounts due to the linear search for lookups. managing uniqueness and ordering would add extra work
+// std::list has additional overhead for managing a doubly-linked list and manually manage ordering and uniqueness
+// std:array or std::vector with fixed size would need account IDs need to be mapped to valid array indices, and the size must be known beforehand or managed manually
+
+// Step 3
+// std::srand(std::time(0)); // Seed the random number generator with current time
+// // Get account IDs into a vector for random selection
+// std::vector<int> accountIDs;
+// for (const auto &account : bankAccounts)
+// {
+//     accountIDs.push_back(account.first); // Add account IDs to vector
+// }
+
+// // generate two random indices to select accounts
+// int randomIndex1 = std::rand() % accountIDs.size(); // random index between 0 and size-1
+// int randomIndex2 = std::rand() % accountIDs.size(); // another random index
+// while (randomIndex1 == randomIndex2)
+// { // make sure both indices are not the same
+//     randomIndex2 = std::rand() % accountIDs.size();
+// }
+// // perform the deposit
+// deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
+// // print the updated balances
+// std::cout << "Updated bank account balances:" << std::endl;
+// for (const auto &account : bankAccounts)
+// {
+//     std::cout << "Account ID: " << account.first << ", Balance: " << account.second << std::endl;
+// }
