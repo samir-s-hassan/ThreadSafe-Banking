@@ -7,6 +7,7 @@
 #include <random>
 #include <thread>
 #include <chrono>
+#include <future>
 
 std::mutex bankMutex;    // declare a global mutex to protect the bank accounts (coarse-grained)
 std::mutex balanceMutex; // mutex to protect balance calculation (coarse-grained)
@@ -43,7 +44,7 @@ float balance(std::map<int, float> &bankAccounts)
     return totalBalance;
 }
 
-void do_work(std::map<int, float> &bankAccounts, int iterations, float &exec_time_i)
+void do_work(std::map<int, float> &bankAccounts, float &exec_time_i)
 {
     auto start = std::chrono::high_resolution_clock::now(); // start measuring time
 
@@ -52,8 +53,8 @@ void do_work(std::map<int, float> &bankAccounts, int iterations, float &exec_tim
     {
         accountIDs.push_back(account.first); // collect all account IDs into this vector
     }
-
-    for (int i = 0; i < iterations; ++i)
+    // chose 5 for my "some number of iterations"
+    for (int i = 0; i < 5; ++i)
     {
         if (generateRandomInt(0, 99) < 95) // 95% probability for deposit
         {
@@ -110,10 +111,34 @@ int main()
     float initialBalance = balance(bankAccounts);
     std::cout << "Total balance of all accounts: " << initialBalance << std::endl;
 
-    // Step 4
-    float finalBalance = balance(bankAccounts);
-    std::cout << "Total balance of all accounts after deposit: " << finalBalance << std::endl;
-    std::cout << "" << std::endl;
+    // Step 6
+    // CHANGE THE NUMBER OF THREADS AS NEEDED
+    const int numThreads = 4; // Number of threads to create
+    std::vector<std::thread> threads;
+    std::vector<std::promise<float>> promises(numThreads); // promises to store exec_time_i
+    std::vector<std::future<float>> futures;               // futures to retrieve exec_time_i
+
+    // link the promises to futures
+    for (auto &promise : promises)
+    {
+        futures.push_back(promise.get_future());
+    }
+    // spawn the threads from our main thread
+    for (int t = 0; t < numThreads; ++t)
+    {
+        threads.emplace_back([&, t]()
+                             {
+                                 float exec_time_i;
+                                 do_work(bankAccounts, exec_time_i);
+                                 promises[t].set_value(exec_time_i); // Pass exec_time_i to the future
+                             });
+    }
+
+    // join all threads
+    for (auto &thread : threads)
+    {
+        thread.join();
+    }
 
     return 0;
 }
@@ -148,3 +173,8 @@ int main()
 // {
 //     std::cout << "Account ID: " << account.first << ", Balance: " << account.second << std::endl;
 // }
+
+// // Step 4
+// float finalBalance = balance(bankAccounts);
+// std::cout << "Total balance of all accounts after deposit: " << finalBalance << std::endl;
+// std::cout << "" << std::endl;
