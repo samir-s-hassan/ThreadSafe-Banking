@@ -126,12 +126,12 @@ int main()
     {
         futures.push_back(promise.get_future());
     }
-    auto start = std::chrono::high_resolution_clock::now(); // start measuring TOTAL TIME
     // spawn the threads from our main thread
     for (int t = 0; t < numThreads; ++t)
     {
         threads.emplace_back([&, t]()
                              {
+                                 // measure our do_work time
                                  auto thread_start = std::chrono::high_resolution_clock::now();
                                  do_work(bankAccounts);
                                  auto thread_end = std::chrono::high_resolution_clock::now();
@@ -144,9 +144,6 @@ int main()
     {
         thread.join();
     }
-    auto end = std::chrono::high_resolution_clock::now(); // end measuring TOTAL TIME
-    std::chrono::duration<float> duration = end - start;
-    float multi_threaded_time = duration.count();
     // print execution times
     float maxExecutionTime = 0.0f;
     for (auto &future : futures)
@@ -166,19 +163,22 @@ int main()
     }
 
     // Step 7: Single-threaded execution
-    auto single_thread_start = std::chrono::high_resolution_clock::now(); // measure single-threaded TOTAL TIME
+    // start measuring total time for single-threaded execution
+    auto single_thread_start = std::chrono::high_resolution_clock::now();
     // same number of iterations as multi-threaded execution
     for (int i = 0; i < numThreads * 5; ++i)
     {
-        // do_work for each iteration in a single thread
+        // do_work for a single thread
         do_work(bankAccounts);
     }
     auto single_thread_end = std::chrono::high_resolution_clock::now(); // end measuring TOTAL TIME
     std::chrono::duration<float> single_thread_duration = single_thread_end - single_thread_start;
-    std::cout << "Comparison between multi-threaded and single-threaded execution times:\n";
-    std::cout << "Multi-threaded time: " << multi_threaded_time << " seconds\n";
-    std::cout << "Single-threaded time: " << single_thread_duration.count() << " seconds\n";
-    std::cout << "Performance difference: " << (single_thread_duration.count() / multi_threaded_time) * 100 << "% slower (or faster)\n";
+    std::cout << "\nComparison between multi-threaded and single-threaded execution times:\n";
+    std::cout << "Max multi-threaded execution time: " << maxExecutionTime << " seconds\n";
+    std::cout << "Single-threaded execution time: " << single_thread_duration.count() << " seconds\n";
+    // calculate and print the performance difference
+    float performance_diff = (single_thread_duration.count() / maxExecutionTime) * 100;
+    std::cout << "Performance difference: " << performance_diff << "% slower (or faster)\n\n";
 
     return 0;
 }
