@@ -8,6 +8,7 @@
 #include <thread>
 #include <chrono>
 #include <future>
+#include <shared_mutex>
 
 std::mutex bankMutex;    // declare a global mutex to protect the bank accounts (coarse-grained)
 std::mutex balanceMutex; // mutex to protect balance calculation (coarse-grained)
@@ -28,6 +29,8 @@ void deposit(std::map<int, float> &bankAccounts, int account1, int account2, flo
     std::lock_guard<std::mutex> lock(bankMutex);
     bankAccounts[account1] -= amount; // subtract from account1
     bankAccounts[account2] += amount; // add to account2
+
+    // Potential deadlock risk, IMPROVE LATER
 }
 
 float balance(std::map<int, float> &bankAccounts)
@@ -41,13 +44,15 @@ float balance(std::map<int, float> &bankAccounts)
         totalBalance += account.second; // add the balance of each account
     }
     return totalBalance;
+
+    // if performance becomes an issue due to mutex, use a shared_mutex, IMPROVE LATER
 }
 
 void do_work(std::map<int, float> &bankAccounts)
 {
     std::vector<int> accountIDs;
     {
-        // lock the mutex here so no other thread can access bankAccounts while we are working
+        // lock the mutex here so no other thread can access bankAccounts while we are working, IS THIS REALLY NEEDED?
         std::lock_guard<std::mutex> lock(bankMutex);
         for (const auto &account : bankAccounts)
         {
@@ -65,21 +70,14 @@ void do_work(std::map<int, float> &bankAccounts)
             {
                 randomIndex2 = generateRandomInt(0, accountIDs.size() - 1); // make sure indices are different
             }
-            {
-                // lock the mutex before the deposit to ensure atomicity
-                std::lock_guard<std::mutex> lock(bankMutex);
                 deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
-            }
         }
         else // 5% probability for balance
         {
-            {
-                // lock the mutex before reading the balance
-                std::lock_guard<std::mutex> lock(bankMutex);
                 balance(bankAccounts);
-            }
         }
     }
+    // if bankAccounts is large, collecting all the account IDs into a vector incurs some overhead as you're copying all keys into a separate vector. If performance is a concern, consider using iterators or direct indexing rather than copying keys to a vector. for most typical sizes, this is acceptable. IMPROVE LATER
 }
 
 int main()
@@ -121,7 +119,7 @@ int main()
     // Step 6: Multi-threading
     const int numThreads = 4; // CHANGE number of threads to create as needed
     std::vector<std::thread> threads;
-    std::vector<std::promise<float>> promises(numThreads); // promises to store exec_time_i
+    std::vector<std::promise<float>> promises(numThreads); // promises to store exec_time_i, execution time
     std::vector<std::future<float>> futures;               // futures to retrieve exec_time_i
     // link the promises to futures
     for (auto &promise : promises)
@@ -163,7 +161,7 @@ int main()
     {
         std::cout << "Error: Final balance is inconsistent!" << std::endl;
     }
-    std::cout << "Total execution time: " << totalExecutionTime << " seconds\n"
+    std::cout << "Total execution time for all threads: " << totalExecutionTime << " seconds\n"
               << std::endl;
     return 0;
 }
