@@ -16,7 +16,7 @@ std::mutex balanceMutex; // mutex to protect balance calculation (coarse-grained
 // Define constants to change easily
 const int NUM_ACCOUNTS = 5;    // Change number of bank accounts here, change line 115 too
 const int NUM_ITERATIONS = 10000; // Change number of iterations in do_work here
-const int NUM_THREADS = 1;     // Change number of threads here
+const int NUM_THREADS = 10;     // Change number of threads here
 
 // Courtesy of Nicholas Thomas, Generates a random int between min and max (inclusive)
 int generateRandomInt(int min, int max)
@@ -51,7 +51,6 @@ float do_work(std::map<int, float> &bankAccounts, bool isMultiThreaded)
     std::vector<int> accountIDs;
     if (isMultiThreaded)
     {
-        // lock the mutex here so no other thread can access bankAccounts while we are working, IS THIS REALLY NEEDED?
         std::lock_guard<std::mutex> lock(bankMutex);
         for (const auto &account : bankAccounts)
         {
@@ -209,9 +208,3 @@ int main()
     bankAccounts.clear();
     return 0;
 }
-
-// std::map has automatic uniqueness, efficient lookups, ordered keys, and memory management
-// std::unordered_map is fast for lookups, you lose the automatic sorting of keys (account IDs) that you get with std::map
-// std::vector is simple, but it's inefficient for large numbers of accounts due to the linear search for lookups. managing uniqueness and ordering would add extra work
-// std::list has additional overhead for managing a doubly-linked list and manually manage ordering and uniqueness
-// std:array or std::vector with fixed size would need account IDs need to be mapped to valid array indices, and the size must be known beforehand or managed manually
