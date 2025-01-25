@@ -18,8 +18,7 @@ int generateRandomInt(int min, int max)
     thread_local static std::random_device rd;         // creates random device (unique to each thread to prevent race cons) (static to avoid reinitialization)
     thread_local static std::mt19937 gen(rd());        // Seeding the RNG (unique to each thread to prevent race cons) (static to avoid reinitialization)
     std::uniform_int_distribution<> distrib(min, max); // Create uniform int dist between min and max (inclusive)
-
-    return distrib(gen); // Generate random number from the uniform int dist (inclusive)
+    return distrib(gen);                               // Generate random number from the uniform int dist (inclusive)
 }
 
 void deposit(std::map<int, float> &bankAccounts, int account1, int account2, float amount)
@@ -44,14 +43,16 @@ float balance(std::map<int, float> &bankAccounts)
     return totalBalance;
 }
 
-void do_work(std::map<int, float> &bankAccounts, float &exec_time_i)
+void do_work(std::map<int, float> &bankAccounts)
 {
-    auto start = std::chrono::high_resolution_clock::now(); // start measuring time
-
     std::vector<int> accountIDs;
-    for (const auto &account : bankAccounts)
     {
-        accountIDs.push_back(account.first); // collect all account IDs into this vector
+        // lock the mutex here so no other thread can access bankAccounts while we are working
+        std::lock_guard<std::mutex> lock(bankMutex);
+        for (const auto &account : bankAccounts)
+        {
+            accountIDs.push_back(account.first); // collect all account IDs into this vector
+        }
     }
     // chose 5 for my "some number of iterations"
     for (int i = 0; i < 5; ++i)
@@ -64,24 +65,28 @@ void do_work(std::map<int, float> &bankAccounts, float &exec_time_i)
             {
                 randomIndex2 = generateRandomInt(0, accountIDs.size() - 1); // make sure indices are different
             }
-            deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
+            {
+                // lock the mutex before the deposit to ensure atomicity
+                std::lock_guard<std::mutex> lock(bankMutex);
+                deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
+            }
         }
         else // 5% probability for balance
         {
-            balance(bankAccounts);
+            {
+                // lock the mutex before reading the balance
+                std::lock_guard<std::mutex> lock(bankMutex);
+                balance(bankAccounts);
+            }
         }
     }
-
-    auto end = std::chrono::high_resolution_clock::now(); // end measuring time
-    std::chrono::duration<float> duration = end - start;  // calculate elapsed time
-    exec_time_i = duration.count();                       // store it in exec_time_i for now
 }
 
 int main()
 {
     // Step 1: Define a map where each account has a unique ID (int) and a balance (float)
     std::map<int, float> bankAccounts;
-    std::cout << "\nMap of bank accounts has been created!" << std::endl;
+    std::cout << std::endl;
 
     // Step 2.0: creating different float arrays such that I can work with whichever one to see different contention effects
     float values1[1] = {100000.0f};                                        // 1 value array
@@ -106,40 +111,60 @@ int main()
     {
         bankAccounts.insert({i + 1, values3[i]});
     }
-
     // Check if the sum is correct
     float initialBalance = balance(bankAccounts);
-    std::cout << "Total balance of all accounts: " << initialBalance << std::endl;
+    if (initialBalance != 100000.0f)
+    {
+        std::cout << "Error: Initial balance is inconsistent!" << std::endl;
+    }
 
-    // Step 6
-    // CHANGE THE NUMBER OF THREADS AS NEEDED
-    const int numThreads = 4; // Number of threads to create
+    // Step 6: Multi-threading
+    const int numThreads = 4; // CHANGE number of threads to create as needed
     std::vector<std::thread> threads;
     std::vector<std::promise<float>> promises(numThreads); // promises to store exec_time_i
     std::vector<std::future<float>> futures;               // futures to retrieve exec_time_i
-
     // link the promises to futures
     for (auto &promise : promises)
     {
         futures.push_back(promise.get_future());
     }
+    auto start = std::chrono::high_resolution_clock::now(); // start measuring TOTAL TIME
     // spawn the threads from our main thread
     for (int t = 0; t < numThreads; ++t)
     {
         threads.emplace_back([&, t]()
                              {
-                                 float exec_time_i;
-                                 do_work(bankAccounts, exec_time_i);
-                                 promises[t].set_value(exec_time_i); // Pass exec_time_i to the future
+                                 auto thread_start = std::chrono::high_resolution_clock::now();
+                                 do_work(bankAccounts);
+                                 auto thread_end = std::chrono::high_resolution_clock::now();
+                                 std::chrono::duration<float> thread_duration = thread_end - thread_start;
+                                 promises[t].set_value(thread_duration.count()); // store time in promise
                              });
     }
-
     // join all threads
     for (auto &thread : threads)
     {
         thread.join();
     }
-
+    auto end = std::chrono::high_resolution_clock::now(); // end measuring TOTAL TIME
+    std::chrono::duration<float> duration = end - start;
+    float multi_threaded_time = duration.count();
+    // print execution times
+    float totalExecutionTime = 0.0f;
+    for (auto &future : futures)
+    {
+        float exec_time_i = future.get();
+        totalExecutionTime += exec_time_i;
+        std::cout << "Thread execution time: " << exec_time_i << " seconds" << std::endl;
+    }
+    // verify final balance
+    float finalBalance = balance(bankAccounts);
+    if (finalBalance != 100000.0f)
+    {
+        std::cout << "Error: Final balance is inconsistent!" << std::endl;
+    }
+    std::cout << "Total execution time: " << totalExecutionTime << " seconds\n"
+              << std::endl;
     return 0;
 }
 

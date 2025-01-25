@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Set the file name
 FILE="hw1.cpp"
 OUTPUT="hw1"
@@ -8,9 +10,9 @@ if [[ ! -f "$FILE" ]]; then
   exit 1
 fi
 
-# Compile the C++ program
+# Compile the C++ program with threading support
 echo "Compiling $FILE..."
-g++ -std=c++17 "$FILE" -o "$OUTPUT"
+g++ -std=c++17 -pthread "$FILE" -o "$OUTPUT"
 if [[ $? -ne 0 ]]; then
   echo "Compilation failed!"
   exit 1
