@@ -180,6 +180,8 @@ int main()
     float performance_diff = (single_thread_duration.count() / maxExecutionTime) * 100;
     std::cout << "Performance difference: " << performance_diff << "% slower (or faster)\n\n";
 
+    // remove all elements from the map
+    bankAccounts.clear();
     return 0;
 }
 
