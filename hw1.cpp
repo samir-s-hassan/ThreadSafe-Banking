@@ -13,6 +13,11 @@
 std::mutex bankMutex;    // declare a global mutex to protect the bank accounts (coarse-grained)
 std::mutex balanceMutex; // mutex to protect balance calculation (coarse-grained)
 
+// Define constants to change easily
+const int NUM_ACCOUNTS = 5;      // Change number of bank accounts here, change line 115 too
+const int NUM_ITERATIONS = 10; // Change number of iterations in do_work here
+const int NUM_THREADS = 8;       // Change number of threads here
+
 // Courtesy of Nicholas Thomas, Generates a random int between min and max (inclusive)
 int generateRandomInt(int min, int max)
 {
@@ -44,11 +49,10 @@ float balance(std::map<int, float> &bankAccounts)
         totalBalance += account.second; // add the balance of each account
     }
     return totalBalance;
-
     // if performance becomes an issue due to mutex, use a shared_mutex, IMPROVE LATER
 }
 
-void do_work(std::map<int, float> &bankAccounts)
+float do_work(std::map<int, float> &bankAccounts)
 {
     std::vector<int> accountIDs;
     {
@@ -59,8 +63,9 @@ void do_work(std::map<int, float> &bankAccounts)
             accountIDs.push_back(account.first); // collect all account IDs into this vector
         }
     }
-    // chose 5 for my "some number of iterations"
-    for (int i = 0; i < 5; ++i)
+    // measure only the execution time of the for-loop
+    auto loop_start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
         if (generateRandomInt(0, 99) < 95) // 95% probability for deposit
         {
@@ -77,6 +82,10 @@ void do_work(std::map<int, float> &bankAccounts)
             balance(bankAccounts);
         }
     }
+    auto loop_end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float> exec_time = loop_end - loop_start;
+    // execution time of the loop only and return the time
+    return exec_time.count(); // Return the loop execution time
     // if bankAccounts is large, collecting all the account IDs into a vector incurs some overhead as you're copying all keys into a separate vector. If performance is a concern, consider using iterators or direct indexing rather than copying keys to a vector. for most typical sizes, this is acceptable. IMPROVE LATER
 }
 
@@ -105,9 +114,9 @@ int main()
                           1700.0f, 1000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f}; // 60 values array
 
     // Step 2.1: choosing an array to use and populating it. edit loop iterations and array name
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < NUM_ACCOUNTS; ++i)
     {
-        bankAccounts.insert({i + 1, values3[i]});
+        bankAccounts.insert({i + 1, values5[i]});
     }
     // Check if the sum is correct
     float initialBalance = balance(bankAccounts);
@@ -117,26 +126,22 @@ int main()
     }
 
     // Step 6: Multi-threading
-    const int numThreads = 4; // CHANGE number of threads to create as needed
     std::vector<std::thread> threads;
-    std::vector<std::promise<float>> promises(numThreads); // promises to store exec_time_i, execution time
-    std::vector<std::future<float>> futures;               // futures to retrieve exec_time_i
+    std::vector<std::promise<float>> promises(NUM_THREADS); // promises to store exec_time_i, execution time
+    std::vector<std::future<float>> futures;                // futures to retrieve exec_time_i
     // link the promises to futures
     for (auto &promise : promises)
     {
         futures.push_back(promise.get_future());
     }
     // spawn the threads from our main thread
-    for (int t = 0; t < numThreads; ++t)
+    for (int t = 0; t < NUM_THREADS; ++t)
     {
         threads.emplace_back([&, t]()
                              {
                                  // measure our do_work time
-                                 auto thread_start = std::chrono::high_resolution_clock::now();
-                                 do_work(bankAccounts);
-                                 auto thread_end = std::chrono::high_resolution_clock::now();
-                                 std::chrono::duration<float> thread_duration = thread_end - thread_start;
-                                 promises[t].set_value(thread_duration.count()); // store time in promise
+                                 float exec_time = do_work(bankAccounts);
+                                 promises[t].set_value(exec_time); // store time in promise
                              });
     }
     // join all threads
@@ -163,23 +168,25 @@ int main()
     }
 
     // Step 7: Single-threaded execution
-    // start measuring total time for single-threaded execution
-    auto single_thread_start = std::chrono::high_resolution_clock::now();
     // same number of iterations as multi-threaded execution
-    for (int i = 0; i < numThreads * 5; ++i)
+    float total_exec_time_single = 0.0f;
+    for (int i = 0; i < (NUM_THREADS * NUM_ITERATIONS); ++i)
     {
         // do_work for a single thread
-        do_work(bankAccounts);
+        total_exec_time_single += do_work(bankAccounts);
     }
-    auto single_thread_end = std::chrono::high_resolution_clock::now(); // end measuring TOTAL TIME
-    std::chrono::duration<float> single_thread_duration = single_thread_end - single_thread_start;
-    std::cout << "\nComparison between multi-threaded and single-threaded execution times:\n";
-    std::cout << "Max multi-threaded execution time: " << maxExecutionTime << " seconds\n";
-    std::cout << "Single-threaded execution time: " << single_thread_duration.count() << " seconds\n";
+    std::cout << "\nMax multi-threaded execution time: " << maxExecutionTime << " seconds\n";
+    std::cout << "Single-threaded execution time:    " << total_exec_time_single << " seconds\n";
     // calculate and print the performance difference
-    float performance_diff = (single_thread_duration.count() / maxExecutionTime) * 100;
-    std::cout << "Performance difference: " << performance_diff << "% slower (or faster)\n\n";
-
+    float performance_ratio = total_exec_time_single / maxExecutionTime;
+    if (performance_ratio > 1)
+    {
+        std::cout << "\nThe multi-threaded performance is " << performance_ratio << " times faster than the single-threaded performance.\n\n";
+    }
+    else
+    {
+        std::cout << "\nThe multi-threaded performance is " << (1 / performance_ratio) << " times slower than the single-threaded performance.\n\n";
+    }
     // remove all elements from the map
     bankAccounts.clear();
     return 0;
