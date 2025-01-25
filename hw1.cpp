@@ -70,11 +70,11 @@ void do_work(std::map<int, float> &bankAccounts)
             {
                 randomIndex2 = generateRandomInt(0, accountIDs.size() - 1); // make sure indices are different
             }
-                deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
+            deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
         }
         else // 5% probability for balance
         {
-                balance(bankAccounts);
+            balance(bankAccounts);
         }
     }
     // if bankAccounts is large, collecting all the account IDs into a vector incurs some overhead as you're copying all keys into a separate vector. If performance is a concern, consider using iterators or direct indexing rather than copying keys to a vector. for most typical sizes, this is acceptable. IMPROVE LATER
@@ -148,12 +148,15 @@ int main()
     std::chrono::duration<float> duration = end - start;
     float multi_threaded_time = duration.count();
     // print execution times
-    float totalExecutionTime = 0.0f;
+    float maxExecutionTime = 0.0f;
     for (auto &future : futures)
     {
         float exec_time_i = future.get();
-        totalExecutionTime += exec_time_i;
         std::cout << "Thread execution time: " << exec_time_i << " seconds" << std::endl;
+        if (exec_time_i > maxExecutionTime)
+        {
+            maxExecutionTime = exec_time_i; // update the max execution time
+        }
     }
     // verify final balance
     float finalBalance = balance(bankAccounts);
@@ -161,8 +164,22 @@ int main()
     {
         std::cout << "Error: Final balance is inconsistent!" << std::endl;
     }
-    std::cout << "Total execution time for all threads: " << totalExecutionTime << " seconds\n"
-              << std::endl;
+
+    // Step 7: Single-threaded execution
+    auto single_thread_start = std::chrono::high_resolution_clock::now(); // measure single-threaded TOTAL TIME
+    // same number of iterations as multi-threaded execution
+    for (int i = 0; i < numThreads * 5; ++i)
+    {
+        // do_work for each iteration in a single thread
+        do_work(bankAccounts);
+    }
+    auto single_thread_end = std::chrono::high_resolution_clock::now(); // end measuring TOTAL TIME
+    std::chrono::duration<float> single_thread_duration = single_thread_end - single_thread_start;
+    std::cout << "Comparison between multi-threaded and single-threaded execution times:\n";
+    std::cout << "Multi-threaded time: " << multi_threaded_time << " seconds\n";
+    std::cout << "Single-threaded time: " << single_thread_duration.count() << " seconds\n";
+    std::cout << "Performance difference: " << (single_thread_duration.count() / multi_threaded_time) * 100 << "% slower (or faster)\n";
+
     return 0;
 }
 
@@ -171,33 +188,3 @@ int main()
 // std::vector is simple, but it's inefficient for large numbers of accounts due to the linear search for lookups. managing uniqueness and ordering would add extra work
 // std::list has additional overhead for managing a doubly-linked list and manually manage ordering and uniqueness
 // std:array or std::vector with fixed size would need account IDs need to be mapped to valid array indices, and the size must be known beforehand or managed manually
-
-// Step 3
-// std::srand(std::time(0)); // Seed the random number generator with current time
-// // Get account IDs into a vector for random selection
-// std::vector<int> accountIDs;
-// for (const auto &account : bankAccounts)
-// {
-//     accountIDs.push_back(account.first); // Add account IDs to vector
-// }
-
-// // generate two random indices to select accounts
-// int randomIndex1 = std::rand() % accountIDs.size(); // random index between 0 and size-1
-// int randomIndex2 = std::rand() % accountIDs.size(); // another random index
-// while (randomIndex1 == randomIndex2)
-// { // make sure both indices are not the same
-//     randomIndex2 = std::rand() % accountIDs.size();
-// }
-// // perform the deposit
-// deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
-// // print the updated balances
-// std::cout << "Updated bank account balances:" << std::endl;
-// for (const auto &account : bankAccounts)
-// {
-//     std::cout << "Account ID: " << account.first << ", Balance: " << account.second << std::endl;
-// }
-
-// // Step 4
-// float finalBalance = balance(bankAccounts);
-// std::cout << "Total balance of all accounts after deposit: " << finalBalance << std::endl;
-// std::cout << "" << std::endl;
