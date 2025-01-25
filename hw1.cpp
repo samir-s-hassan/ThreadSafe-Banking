@@ -14,9 +14,9 @@ std::mutex bankMutex;    // declare a global mutex to protect the bank accounts 
 std::mutex balanceMutex; // mutex to protect balance calculation (coarse-grained)
 
 // Define constants to change easily
-const int NUM_ACCOUNTS = 5;      // Change number of bank accounts here, change line 115 too
-const int NUM_ITERATIONS = 10; // Change number of iterations in do_work here
-const int NUM_THREADS = 1;       // Change number of threads here
+const int NUM_ACCOUNTS = 5;    // Change number of bank accounts here, change line 115 too
+const int NUM_ITERATIONS = 10000; // Change number of iterations in do_work here
+const int NUM_THREADS = 1;     // Change number of threads here
 
 // Courtesy of Nicholas Thomas, Generates a random int between min and max (inclusive)
 int generateRandomInt(int min, int max)
@@ -29,19 +29,13 @@ int generateRandomInt(int min, int max)
 
 void deposit(std::map<int, float> &bankAccounts, int account1, int account2, float amount)
 {
-    // lock the mutex to ensure atomic access to the bank accounts
-    // RAII-style lock, meaning that it will automatically release the lock when it goes out of scope (which happens at the end of the deposit function).
-    std::lock_guard<std::mutex> lock(bankMutex);
     bankAccounts[account1] -= amount; // subtract from account1
     bankAccounts[account2] += amount; // add to account2
-
     // Potential deadlock risk, IMPROVE LATER
 }
 
 float balance(std::map<int, float> &bankAccounts)
 {
-    // lock the mutex to ensure atomic access to the bank accounts
-    std::lock_guard<std::mutex> lock(balanceMutex);
     float totalBalance = 0.0f;
     // iterate over all the bank accounts and calculate the total balance
     for (const std::pair<const int, float> &account : bankAccounts)
@@ -52,12 +46,20 @@ float balance(std::map<int, float> &bankAccounts)
     // if performance becomes an issue due to mutex, use a shared_mutex, IMPROVE LATER
 }
 
-float do_work(std::map<int, float> &bankAccounts)
+float do_work(std::map<int, float> &bankAccounts, bool isMultiThreaded)
 {
     std::vector<int> accountIDs;
+    if (isMultiThreaded)
     {
         // lock the mutex here so no other thread can access bankAccounts while we are working, IS THIS REALLY NEEDED?
         std::lock_guard<std::mutex> lock(bankMutex);
+        for (const auto &account : bankAccounts)
+        {
+            accountIDs.push_back(account.first); // collect all account IDs into this vector
+        }
+    }
+    else
+    { // no locking at all for single threaded
         for (const auto &account : bankAccounts)
         {
             accountIDs.push_back(account.first); // collect all account IDs into this vector
@@ -75,11 +77,27 @@ float do_work(std::map<int, float> &bankAccounts)
             {
                 randomIndex2 = generateRandomInt(0, accountIDs.size() - 1); // make sure indices are different
             }
-            deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
+            if (isMultiThreaded)
+            {
+                std::lock_guard<std::mutex> lock(bankMutex);
+                deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
+            }
+            else
+            {
+                deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
+            }
         }
         else // 5% probability for balance
         {
-            balance(bankAccounts);
+            if (isMultiThreaded)
+            {
+                std::lock_guard<std::mutex> lock(bankMutex);
+                balance(bankAccounts);
+            }
+            else
+            {
+                balance(bankAccounts);
+            }
         }
     }
     auto loop_end = std::chrono::high_resolution_clock::now();
@@ -140,7 +158,7 @@ int main()
         threads.emplace_back([&, t]()
                              {
                                  // measure our do_work time
-                                 float exec_time = do_work(bankAccounts);
+                                 float exec_time = do_work(bankAccounts, true);
                                  promises[t].set_value(exec_time); // store time in promise
                              });
     }
@@ -173,7 +191,7 @@ int main()
     for (int i = 0; i < (NUM_THREADS * NUM_ITERATIONS); ++i)
     {
         // do_work for a single thread
-        total_exec_time_single += do_work(bankAccounts);
+        total_exec_time_single += do_work(bankAccounts, false);
     }
     std::cout << "\nMax multi-threaded execution time: " << maxExecutionTime << " seconds\n";
     std::cout << "Single-threaded execution time:    " << total_exec_time_single << " seconds\n";
