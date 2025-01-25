@@ -16,7 +16,7 @@ std::mutex balanceMutex; // mutex to protect balance calculation (coarse-grained
 // Define constants to change easily
 const int NUM_ACCOUNTS = 5;      // Change number of bank accounts here, change line 115 too
 const int NUM_ITERATIONS = 10; // Change number of iterations in do_work here
-const int NUM_THREADS = 8;       // Change number of threads here
+const int NUM_THREADS = 1;       // Change number of threads here
 
 // Courtesy of Nicholas Thomas, Generates a random int between min and max (inclusive)
 int generateRandomInt(int min, int max)
