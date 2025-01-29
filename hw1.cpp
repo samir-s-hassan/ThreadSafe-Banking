@@ -1,5 +1,6 @@
 #include <iostream>
 #include <map>
+#include <unordered_map>
 #include <cstdlib>
 #include <ctime>
 #include <vector>
@@ -11,14 +12,16 @@
 #include <shared_mutex>
 
 std::mutex bankMutex;    // declare a global mutex to protect the bank accounts (coarse-grained)
-std::mutex balanceMutex; // mutex to protect balance calculation (coarse-grained)
+std::shared_mutex balanceMutex; // mutex to protect balance calculation (coarse-grained)
+std::unordered_map<int, std::mutex> accountMutexes;
+; // per-account mutex map (fine-grained)
 
 // Define constants to change easily
-const int NUM_ACCOUNTS = 5;    // Change number of bank accounts here, change line 115 too
-const int NUM_ITERATIONS = 10000; // Change number of iterations in do_work here
+const int NUM_ACCOUNTS = 5;     // Change number of bank accounts here, change line 115 too
+const int NUM_ITERATIONS = 100; // Change number of iterations in do_work here
 const int NUM_THREADS = 10;     // Change number of threads here
 
-// Courtesy of Nicholas Thomas, Generates a random int between min and max (inclusive)
+// DONE, single-threaded and multi-threaded
 int generateRandomInt(int min, int max)
 {
     thread_local static std::random_device rd;         // creates random device (unique to each thread to prevent race cons) (static to avoid reinitialization)
@@ -27,15 +30,49 @@ int generateRandomInt(int min, int max)
     return distrib(gen);                               // Generate random number from the uniform int dist (inclusive)
 }
 
-void deposit(std::map<int, float> &bankAccounts, int account1, int account2, float amount)
+// DONE, single-threaded application
+void single_deposit(std::map<int, float> &bankAccounts, int account1, int account2, float amount)
 {
-    bankAccounts[account1] -= amount; // subtract from account1
+    // if (bankAccounts[account1] < amount)
+    // {
+    //     throw std::runtime_error("Insufficient funds."); // check before withdrawal
+    // }
+
+    bankAccounts[account1] -= amount; // safe to subtract now
     bankAccounts[account2] += amount; // add to account2
-    // Potential deadlock risk, IMPROVE LATER
 }
 
+// WIP, multi-threaded application
+void deposit(std::map<int, float> &bankAccounts, int account1, int account2, float amount)
+{
+    // lock both account mutexes at the same time to avoid deadlock and automatically unlocks when function exits, INCORPORATE DETERMINISTIC ORDER
+    std::scoped_lock lock(accountMutexes[account1], accountMutexes[account2]);
+
+    // if (bankAccounts[account1] < amount)
+    // {
+    //     throw std::runtime_error("Insufficient funds.");
+    // }
+
+    bankAccounts[account1] -= amount;
+    bankAccounts[account2] += amount;
+}
+
+// DONE, single-threaded application
+float single_balance(std::map<int, float> &bankAccounts)
+{
+    float totalBalance = 0.0f;
+    // iterate over all the bank accounts and calculate the total balance
+    for (const std::pair<const int, float> &account : bankAccounts)
+    {
+        totalBalance += account.second; // add the balance of each account
+    }
+    return totalBalance;
+}
+
+// WIP, for multi-threaded application
 float balance(std::map<int, float> &bankAccounts)
 {
+    std::shared_lock<std::shared_mutex> lock(balanceMutex); // shared lock allows concurrent reads
     float totalBalance = 0.0f;
     // iterate over all the bank accounts and calculate the total balance
     for (const std::pair<const int, float> &account : bankAccounts)
@@ -46,25 +83,17 @@ float balance(std::map<int, float> &bankAccounts)
     // if performance becomes an issue due to mutex, use a shared_mutex, IMPROVE LATER
 }
 
-float do_work(std::map<int, float> &bankAccounts, bool isMultiThreaded)
+// DONE
+// for single_threaded application
+float single_do_work(std::map<int, float> &bankAccounts)
 {
     std::vector<int> accountIDs;
-    if (isMultiThreaded)
+    // if bankAccounts is large, collecting all the account IDs into a vector incurs some overhead as you're copying all keys into a separate vector. If performance is a concern, consider using iterators or direct indexing rather than copying keys to a vector. for most typical sizes, this is acceptable.
+    for (const auto &account : bankAccounts)
     {
-        std::lock_guard<std::mutex> lock(bankMutex);
-        for (const auto &account : bankAccounts)
-        {
-            accountIDs.push_back(account.first); // collect all account IDs into this vector
-        }
+        accountIDs.push_back(account.first);
     }
-    else
-    { // no locking at all for single threaded
-        for (const auto &account : bankAccounts)
-        {
-            accountIDs.push_back(account.first); // collect all account IDs into this vector
-        }
-    }
-    // measure only the execution time of the for-loop
+
     auto loop_start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
@@ -74,36 +103,54 @@ float do_work(std::map<int, float> &bankAccounts, bool isMultiThreaded)
             int randomIndex2 = generateRandomInt(0, accountIDs.size() - 1);
             while (randomIndex1 == randomIndex2)
             {
-                randomIndex2 = generateRandomInt(0, accountIDs.size() - 1); // make sure indices are different
+                randomIndex2 = generateRandomInt(0, accountIDs.size() - 1);
             }
-            if (isMultiThreaded)
+            single_deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
+        }
+        else // 5% probability for balance
+        {
+            single_balance(bankAccounts);
+        }
+    }
+    auto loop_end = std::chrono::high_resolution_clock::now();
+    return std::chrono::duration<float>(loop_end - loop_start).count();
+}
+
+float do_work(std::map<int, float> &bankAccounts)
+{
+    std::vector<int> accountIDs;
+    // if bankAccounts is large, collecting all the account IDs into a vector incurs some overhead as you're copying all keys into a separate vector. If performance is a concern, consider using iterators or direct indexing rather than copying keys to a vector. for most typical sizes, this is acceptable.
+    { // lock only while collecting account IDs
+        std::lock_guard<std::mutex> lock(bankMutex);
+        for (const auto &account : bankAccounts)
+        {
+            accountIDs.push_back(account.first);
+        }
+    }
+    auto loop_start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < NUM_ITERATIONS; ++i)
+    {
+        if (generateRandomInt(0, 99) < 95) // 95% probability for deposit
+        {
+            int randomIndex1 = generateRandomInt(0, accountIDs.size() - 1);
+            int randomIndex2 = generateRandomInt(0, accountIDs.size() - 1);
+            while (randomIndex1 == randomIndex2)
+            {
+                randomIndex2 = generateRandomInt(0, accountIDs.size() - 1);
+            }
             {
                 std::lock_guard<std::mutex> lock(bankMutex);
-                deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
-            }
-            else
-            {
                 deposit(bankAccounts, accountIDs[randomIndex1], accountIDs[randomIndex2], 5000.0f);
             }
         }
         else // 5% probability for balance
         {
-            if (isMultiThreaded)
-            {
-                std::lock_guard<std::mutex> lock(bankMutex);
-                balance(bankAccounts);
-            }
-            else
-            {
-                balance(bankAccounts);
-            }
+            std::lock_guard<std::mutex> lock(bankMutex);
+            balance(bankAccounts);
         }
     }
     auto loop_end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<float> exec_time = loop_end - loop_start;
-    // execution time of the loop only and return the time
-    return exec_time.count(); // Return the loop execution time
-    // if bankAccounts is large, collecting all the account IDs into a vector incurs some overhead as you're copying all keys into a separate vector. If performance is a concern, consider using iterators or direct indexing rather than copying keys to a vector. for most typical sizes, this is acceptable. IMPROVE LATER
+    return std::chrono::duration<float>(loop_end - loop_start).count();
 }
 
 int main()
@@ -157,7 +204,7 @@ int main()
         threads.emplace_back([&, t]()
                              {
                                  // measure our do_work time
-                                 float exec_time = do_work(bankAccounts, true);
+                                 float exec_time = do_work(bankAccounts);
                                  promises[t].set_value(exec_time); // store time in promise
                              });
     }
@@ -190,7 +237,7 @@ int main()
     for (int i = 0; i < (NUM_THREADS * NUM_ITERATIONS); ++i)
     {
         // do_work for a single thread
-        total_exec_time_single += do_work(bankAccounts, false);
+        total_exec_time_single += single_do_work(bankAccounts);
     }
     std::cout << "\nMax multi-threaded execution time: " << maxExecutionTime << " seconds\n";
     std::cout << "Single-threaded execution time:    " << total_exec_time_single << " seconds\n";
