@@ -11,13 +11,8 @@
 #include <future>
 #include <shared_mutex>
 
-// std::shared_mutex balanceMutex;                     // mutex to protect balance calculation (coarse-grained)
-// std::unordered_map<int, std::mutex> accountMutexes; // per-account mutex map (fine-grained)
-
-// EDIT AS NEEDED, and remember to edit the array if editing NUM_ACCOUNTS
-const int NUM_ACCOUNTS = 10;      // Change number of bank accounts here, change line 115 too
-const int NUM_ITERATIONS = 10000; // Change number of iterations in do_work here
-const int NUM_THREADS = 16;       // Change number of threads here
+std::shared_mutex balanceMutex;                     // mutex to protect balance calculation (coarse-grained)
+std::unordered_map<int, std::mutex> accountMutexes; // per-account mutex map (fine-grained)
 
 int generateRandomInt(int min, int max)
 {
@@ -29,8 +24,8 @@ int generateRandomInt(int min, int max)
 
 void single_deposit(std::map<int, float> &bankAccounts, int account1, int account2, float amount)
 {
-    // check if the account1 has enough funds (greater than 5000)
-    if (bankAccounts[account1] > 5000.0f)
+    // check if the account1 has enough funds (greater than amount)
+    if (bankAccounts[account1] > amount)
     {
         // Perform the deposit only if there are sufficient funds
         bankAccounts[account1] -= amount;
@@ -41,16 +36,16 @@ void single_deposit(std::map<int, float> &bankAccounts, int account1, int accoun
 void deposit(std::map<int, float> &bankAccounts, int account1, int account2, float amount)
 {
     // check if account1 has enough funds (greater than 5000)
-    if (bankAccounts[account1] > 5000.0f)
+    if (bankAccounts[account1] > amount)
     {
-        // // Deterministic, consistent order to avoid deadlock
-        // int low = std::min(account1, account2);
-        // int high = std::max(account1, account2);
+        // Deterministic, consistent order to avoid deadlock
+        int low = std::min(account1, account2);
+        int high = std::max(account1, account2);
 
-        // std::unique_lock<std::mutex> lock1(accountMutexes[low], std::defer_lock);
-        // std::unique_lock<std::mutex> lock2(accountMutexes[high], std::defer_lock);
+        std::unique_lock<std::mutex> lock1(accountMutexes[low], std::defer_lock);
+        std::unique_lock<std::mutex> lock2(accountMutexes[high], std::defer_lock);
 
-        // std::lock(lock1, lock2); // Prevent deadlocks by locking both
+        std::lock(lock1, lock2); // Prevent deadlocks by locking both
 
         // Perform the deposit only if there are sufficient funds
         bankAccounts[account1] -= amount;
@@ -60,7 +55,6 @@ void deposit(std::map<int, float> &bankAccounts, int account1, int account2, flo
 
 float single_balance(std::map<int, float> &bankAccounts)
 {
-    // no lock because for single thread
     float total = 0.0f;
     for (const auto &account : bankAccounts)
     {
@@ -71,7 +65,7 @@ float single_balance(std::map<int, float> &bankAccounts)
 
 float balance(std::map<int, float> &bankAccounts)
 {
-    // std::shared_lock<std::shared_mutex> lock(balanceMutex); // a shared lock for reading
+    std::shared_lock<std::shared_mutex> lock(balanceMutex); // a shared lock for reading
     float total = 0.0f;
     for (const auto &account : bankAccounts)
     {
@@ -80,7 +74,7 @@ float balance(std::map<int, float> &bankAccounts)
     return total;
 }
 
-float single_do_work(std::map<int, float> &bankAccounts)
+float single_do_work(std::map<int, float> &bankAccounts, int numIterations)
 {
     std::vector<int> accountIDs;
     // collect account IDs (single-threaded, no locks needed)
@@ -90,7 +84,7 @@ float single_do_work(std::map<int, float> &bankAccounts)
     }
 
     auto loop_start = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < NUM_ITERATIONS; ++i)
+    for (int i = 0; i < numIterations; ++i)
     {
         if (generateRandomInt(0, 99) < 95) // 95% probability for deposit
         {
@@ -115,7 +109,7 @@ float single_do_work(std::map<int, float> &bankAccounts)
     return std::chrono::duration<float>(loop_end - loop_start).count();
 }
 
-float do_work(std::map<int, float> &bankAccounts)
+float do_work(std::map<int, float> &bankAccounts, int numIterations, int numThreads)
 {
     std::vector<int> accountIDs;
     // collect all account IDs without locking. step is done outside the critical section to avoid unnecessary locking.
@@ -127,7 +121,7 @@ float do_work(std::map<int, float> &bankAccounts)
     }
 
     auto loop_start = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < NUM_ITERATIONS; ++i)
+    for (int i = 0; i < numIterations / numThreads; ++i)
     {
         if (generateRandomInt(0, 99) < 95) // 95% probability for deposit
         {
@@ -152,16 +146,25 @@ float do_work(std::map<int, float> &bankAccounts)
     return std::chrono::duration<float>(loop_end - loop_start).count();
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-    // Step 1: Define a map where each account has a unique ID (int) and a balance (float)
+    // Step 1: Parse the command-line arguments to set NUM_ACCOUNTS, NUM_THREADS, and NUM_ITERATIONS
+    if (argc != 4)
+    {
+        std::cerr << "Usage: " << argv[0] << " <num_accounts> <num_threads> <num_iterations>" << std::endl;
+        return 1;
+    }
+
+    const int NUM_ACCOUNTS = std::stoi(argv[1]);
+    const int NUM_THREADS = std::stoi(argv[2]);
+    const int NUM_ITERATIONS = std::stoi(argv[3]);
+
+    // Step 2: Define a map where each account has a unique ID (int) and a balance (float)
     std::map<int, float> bankAccounts;
     std::cout << std::endl;
 
     // Step 2.0: creating different float arrays such that I can work with whichever one to see different contention effects
-    float values1[1] = {100000.0f};                                        // 1 value array
-    float values3[3] = {40000.0f, 30000.0f, 30000.0f};                     // 3 values array
-    float values5[5] = {10000.0f, 15000.0f, 20000.0f, 25000.0f, 30000.0f}; // 5 values array
+    float values3[3] = {40000.0f, 30000.0f, 30000.0f}; // 3 values array
     float values10[10] = {10000.0f, 8000.0f, 12000.0f, 9000.0f, 15000.0f,
                           7000.0f, 13000.0f, 6000.0f, 11000.0f, 9000.0f}; // 10 values array
     float values20[20] = {5000.0f, 1000.0f, 4000.0f, 6000.0f, 5000.0f,
@@ -180,14 +183,19 @@ int main()
     float initialBalance = 0;
     for (int i = 0; i < NUM_ACCOUNTS; ++i)
     {
-        bankAccounts.insert({i + 1, values10[i]});
-        initialBalance += values10[i];
+        bankAccounts.insert({i + 1, values3[i]});
+        initialBalance += values3[i];
     }
     // Check if the sum is correct
     if (initialBalance != 100000.0f)
     {
-        std::cout << "Error: Initial balance is inconsistent!" << std::endl;
+        std::cout << "Error: Initial balance is inconsistent!  " << static_cast<int>(initialBalance) << std::endl;
     }
+
+    // Print the current configuration
+    std::cout << "Running with NUM_ACCOUNTS = " << NUM_ACCOUNTS
+              << ", NUM_THREADS = " << NUM_THREADS
+              << ", NUM_ITERATIONS = " << NUM_ITERATIONS << std::endl;
 
     // Step 6: Multi-threading
     std::vector<std::thread> threads;
@@ -204,7 +212,7 @@ int main()
         threads.emplace_back([&, t]()
                              {
                                  // measure our do_work time
-                                 float exec_time = do_work(bankAccounts);
+                                 float exec_time = do_work(bankAccounts, NUM_ITERATIONS, NUM_THREADS);
                                  promises[t].set_value(exec_time); // store time in promise
                              });
     }
@@ -218,7 +226,7 @@ int main()
     for (auto &future : futures)
     {
         float exec_time_i = future.get();
-        std::cout << "Thread execution time: " << exec_time_i * 1000 << " milliseconds" << std::endl;
+        // std::cout << "Thread execution time: " << exec_time_i * 1000 << " milliseconds" << std::endl;
         if (exec_time_i > maxExecutionTime)
         {
             maxExecutionTime = exec_time_i; // update the max execution time
@@ -228,17 +236,12 @@ int main()
     float finalBalance = balance(bankAccounts);
     if (finalBalance != 100000.0f)
     {
-        std::cout << "Error: Final balance is inconsistent!" << ::std::endl;
+        std::cout << "Error: Final balance is inconsistent!  " << static_cast<int>(finalBalance) << std::endl; // Display the inconsistent balance
     }
 
     // Step 7: Single-threaded execution
-    // same number of iterations as multi-threaded execution
-    float total_exec_time_single = 0.0f;
-    for (int i = 0; i < (NUM_THREADS); ++i)
-    {
-        // do_work for a single thread
-        total_exec_time_single += single_do_work(bankAccounts);
-    }
+    // do_work for a single thread
+    float total_exec_time_single = single_do_work(bankAccounts, NUM_ITERATIONS);
     std::cout << "\nMax multi-threaded execution time: " << maxExecutionTime * 1000 << " milliseconds\n";
     std::cout << "Single-threaded execution time:    " << total_exec_time_single * 1000 << " milliseconds\n";
     // calculate and print the performance difference
@@ -251,6 +254,7 @@ int main()
     {
         std::cout << "\nThe multi-threaded performance is " << (1 / performance_ratio) << " times slower than the single-threaded performance.\n\n";
     }
+    std::cout << "<----------------------------------------------------------------------->" << std::endl;
     // remove all elements from the map
     bankAccounts.clear();
     return 0;
