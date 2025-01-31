@@ -11,8 +11,8 @@
 #include <future>
 #include <shared_mutex>
 
-std::shared_mutex balanceMutex;                     // mutex to protect balance calculation (coarse-grained)
-std::unordered_map<int, std::mutex> accountMutexes; // per-account mutex map (fine-grained)
+// std::shared_mutex balanceMutex;                     // mutex to protect balance calculation (coarse-grained)
+// std::unordered_map<int, std::mutex> accountMutexes; // per-account mutex map (fine-grained)
 
 // EDIT AS NEEDED, and remember to edit the array if editing NUM_ACCOUNTS
 const int NUM_ACCOUNTS = 10;      // Change number of bank accounts here, change line 115 too
@@ -43,14 +43,14 @@ void deposit(std::map<int, float> &bankAccounts, int account1, int account2, flo
     // check if account1 has enough funds (greater than 5000)
     if (bankAccounts[account1] > 5000.0f)
     {
-        // Deterministic, consistent order to avoid deadlock
-        int low = std::min(account1, account2);
-        int high = std::max(account1, account2);
+        // // Deterministic, consistent order to avoid deadlock
+        // int low = std::min(account1, account2);
+        // int high = std::max(account1, account2);
 
-        std::unique_lock<std::mutex> lock1(accountMutexes[low], std::defer_lock);
-        std::unique_lock<std::mutex> lock2(accountMutexes[high], std::defer_lock);
+        // std::unique_lock<std::mutex> lock1(accountMutexes[low], std::defer_lock);
+        // std::unique_lock<std::mutex> lock2(accountMutexes[high], std::defer_lock);
 
-        std::lock(lock1, lock2); // Prevent deadlocks by locking both
+        // std::lock(lock1, lock2); // Prevent deadlocks by locking both
 
         // Perform the deposit only if there are sufficient funds
         bankAccounts[account1] -= amount;
@@ -71,7 +71,7 @@ float single_balance(std::map<int, float> &bankAccounts)
 
 float balance(std::map<int, float> &bankAccounts)
 {
-    std::shared_lock<std::shared_mutex> lock(balanceMutex); // a shared lock for reading
+    // std::shared_lock<std::shared_mutex> lock(balanceMutex); // a shared lock for reading
     float total = 0.0f;
     for (const auto &account : bankAccounts)
     {
