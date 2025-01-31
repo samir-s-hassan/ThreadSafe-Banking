@@ -6,7 +6,7 @@ OUTPUT="hw1"
 
 # Set the number of accounts and iterations
 NUM_ACCOUNTS=3
-NUM_ITERATIONS=100000
+NUM_ITERATIONS=1000000
 
 # Check if the file exists
 if [[ ! -f "$FILE" ]]; then
