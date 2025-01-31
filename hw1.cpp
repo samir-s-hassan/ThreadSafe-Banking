@@ -38,14 +38,14 @@ void deposit(std::map<int, float> &bankAccounts, int account1, int account2, flo
     // check if account1 has enough funds (greater than 5000)
     if (bankAccounts[account1] > amount)
     {
-        // Deterministic, consistent order to avoid deadlock
-        int low = std::min(account1, account2);
-        int high = std::max(account1, account2);
+        // // Deterministic, consistent order to avoid deadlock
+        // int low = std::min(account1, account2);
+        // int high = std::max(account1, account2);
 
-        std::unique_lock<std::mutex> lock1(accountMutexes[low], std::defer_lock);
-        std::unique_lock<std::mutex> lock2(accountMutexes[high], std::defer_lock);
+        // std::unique_lock<std::mutex> lock1(accountMutexes[low], std::defer_lock);
+        // std::unique_lock<std::mutex> lock2(accountMutexes[high], std::defer_lock);
 
-        std::lock(lock1, lock2); // Prevent deadlocks by locking both
+        // std::lock(lock1, lock2); // Prevent deadlocks by locking both
 
         // Perform the deposit only if there are sufficient funds
         bankAccounts[account1] -= amount;
@@ -65,7 +65,7 @@ float single_balance(std::map<int, float> &bankAccounts)
 
 float balance(std::map<int, float> &bankAccounts)
 {
-    std::shared_lock<std::shared_mutex> lock(balanceMutex); // a shared lock for reading
+    // std::shared_lock<std::shared_mutex> lock(balanceMutex); // a shared lock for reading
     float total = 0.0f;
     for (const auto &account : bankAccounts)
     {
@@ -240,6 +240,7 @@ int main(int argc, char *argv[])
     }
 
     // Step 7: Single-threaded execution
+
     // do_work for a single thread
     float total_exec_time_single = single_do_work(bankAccounts, NUM_ITERATIONS);
     std::cout << "\nMax multi-threaded execution time: " << maxExecutionTime * 1000 << " milliseconds\n";
