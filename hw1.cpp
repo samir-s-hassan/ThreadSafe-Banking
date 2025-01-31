@@ -164,14 +164,14 @@ int main(int argc, char *argv[])
     std::cout << std::endl;
 
     // Step 2.0: creating different float arrays such that I can work with whichever one to see different contention effects
-    float values3[3] = {40000.0f, 30000.0f, 30000.0f}; // 3 values array
-    float values10[10] = {10000.0f, 8000.0f, 12000.0f, 9000.0f, 15000.0f,
+    float changeThis3[3] = {40000.0f, 30000.0f, 30000.0f}; // 3 values array
+    float changeThis10[10] = {10000.0f, 8000.0f, 12000.0f, 9000.0f, 15000.0f,
                           7000.0f, 13000.0f, 6000.0f, 11000.0f, 9000.0f}; // 10 values array
-    float values20[20] = {5000.0f, 1000.0f, 4000.0f, 6000.0f, 5000.0f,
+    float changeThis20[20] = {5000.0f, 1000.0f, 4000.0f, 6000.0f, 5000.0f,
                           4000.0f, 6000.0f, 4000.0f, 5000.0f, 2000.0f,
                           4000.0f, 9000.0f, 5000.0f, 4000.0f, 5000.0f,
                           5000.0f, 4000.0f, 6000.0f, 7000.0f, 9000.0f}; // 20 values array
-    float values60[60] = {12400.0f, 2000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f,
+    float changeThis60[60] = {12400.0f, 2000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f,
                           1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f, 1500.0f, 1200.0f,
                           1800.0f, 2200.0f, 1700.0f, 1000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f,
                           1700.0f, 1000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f,
@@ -183,8 +183,8 @@ int main(int argc, char *argv[])
     float initialBalance = 0;
     for (int i = 0; i < NUM_ACCOUNTS; ++i)
     {
-        bankAccounts.insert({i + 1, values3[i]});
-        initialBalance += values3[i];
+        bankAccounts.insert({i + 1, changeThis3[i]});
+        initialBalance += changeThis3[i];
     }
     // Check if the sum is correct
     if (initialBalance != 100000.0f)
