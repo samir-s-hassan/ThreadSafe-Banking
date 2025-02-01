@@ -2,9 +2,9 @@
 
 ## How to run
 
-./run_nolocks.sh <num_accounts>
-./run_coarselocks.sh <num_accounts>
-./run_finelocks.sh <num_accounts>
+./run_nolocks.sh <num_accounts>  
+./run_coarselocks.sh <num_accounts>  
+./run_finelocks.sh <num_accounts>  
 
 Run any of the commands above in your terminal to see each program's execution time based on how it was implemented. Currently, the program only supports 3, 10, 20, and 60 for the number of accounts. Please enter one of those numbers then.
 
