@@ -1,11 +1,19 @@
 #!/bin/bash
 
 # Set the file name and output executable
-FILE="hw1.cpp"
-OUTPUT="hw1"
+FILE="hw1_fine_locks.cpp"
+OUTPUT="hw1_fine_locks"
 
-# Set the number of accounts and iterations
-NUM_ACCOUNTS=60
+# Check if the correct number of arguments is passed (script expects 1 argument: number of accounts)
+if [ $# -ne 1 ]; then
+  echo "Usage: $0 <num_accounts>"
+  exit 1
+fi
+
+# Get the number of accounts from the command-line argument
+NUM_ACCOUNTS=$1
+
+# Set the number of iterations
 NUM_ITERATIONS=1000000
 
 # Check if the file exists

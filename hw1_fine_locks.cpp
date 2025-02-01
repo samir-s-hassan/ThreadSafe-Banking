@@ -11,7 +11,6 @@
 #include <future>
 #include <shared_mutex>
 
-std::mutex bankMutex;                               // Coarse-grained mutex for all account operations
 std::shared_mutex balanceMutex;                     // mutex to protect balance calculation (coarse-grained)
 std::unordered_map<int, std::mutex> accountMutexes; // per-account mutex map (fine-grained)
 
@@ -53,8 +52,8 @@ std::vector<float> getInitialBalances(int num_accounts)
     }
     else
     {
-        std::cerr << "Error: Unsupported number of accounts. Please choose either 3, 10, 20, or 60. Exiting...\n";
-        exit(1);
+        std::cerr << "Error: Unsupported number of accounts. Please choose either 3, 10, 20, or 60.\n";
+        return{};
     }
 }
 
@@ -71,24 +70,23 @@ void single_deposit(std::map<int, float> &bankAccounts, int account1, int accoun
 
 void deposit(std::map<int, float> &bankAccounts, int account1, int account2, float amount)
 {
+    int low = std::min(account1, account2);
+    int high = std::max(account1, account2);
+
+    std::unique_lock<std::mutex> lock1(accountMutexes[low], std::defer_lock);
+    std::unique_lock<std::mutex> lock2(accountMutexes[high], std::defer_lock);
+
+    std::lock(lock1, lock2); // lock both to prevent deadlocks
+
+    // check balance *inside* critical section and return early if insufficient funds
+    if (bankAccounts[account1] < amount)
     {
-        // check if account1 has enough funds (greater than 5000)
-        if (bankAccounts[account1] > amount)
-        {
-            // Deterministic, consistent order to avoid deadlock
-            int low = std::min(account1, account2);
-            int high = std::max(account1, account2);
-
-            std::unique_lock<std::mutex> lock1(accountMutexes[low], std::defer_lock);
-            std::unique_lock<std::mutex> lock2(accountMutexes[high], std::defer_lock);
-
-            std::lock(lock1, lock2); // Prevent deadlocks by locking both
-
-            // Perform the deposit only if there are sufficient funds
-            bankAccounts[account1] -= amount;
-            bankAccounts[account2] += amount;
-        }
+        return; // Locks will be released automatically when function exits
     }
+
+    // dp the transfer
+    bankAccounts[account1] -= amount;
+    bankAccounts[account2] += amount;
 }
 
 float single_balance(std::map<int, float> &bankAccounts)
@@ -211,6 +209,7 @@ int main(int argc, char *argv[])
     {
         bankAccounts[i + 1] = initialBalances[i];
         initialBalanceSum += initialBalances[i];
+        accountMutexes[i];
     }
     // Check if the sum is correct
     if (initialBalanceSum != 100000.0f)
