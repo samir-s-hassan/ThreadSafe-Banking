@@ -23,6 +23,41 @@ int generateRandomInt(int min, int max)
     return distrib(gen);                               // Generate random number from the uniform int dist (inclusive)
 }
 
+std::vector<float> getInitialBalances(int num_accounts)
+{
+    if (num_accounts == 3)
+    {
+        return {40000.0f, 30000.0f, 30000.0f};
+    }
+    else if (num_accounts == 10)
+    {
+        return {10000.0f, 8000.0f, 12000.0f, 9000.0f, 15000.0f,
+                7000.0f, 13000.0f, 6000.0f, 11000.0f, 9000.0f}; // 10 values array
+    }
+    else if (num_accounts == 20)
+    {
+        return {5000.0f, 1000.0f, 4000.0f, 6000.0f, 5000.0f,
+                4000.0f, 6000.0f, 4000.0f, 5000.0f, 2000.0f,
+                4000.0f, 9000.0f, 5000.0f, 4000.0f, 5000.0f,
+                5000.0f, 4000.0f, 6000.0f, 7000.0f, 9000.0f}; // 20 values array
+    }
+    else if (num_accounts == 60)
+    {
+        return {12400.0f, 2000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f,
+                1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f, 1500.0f, 1200.0f,
+                1800.0f, 2200.0f, 1700.0f, 1000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f,
+                1700.0f, 1000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f,
+                1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f, 2500.0f, 1200.0f,
+                1800.0f, 2200.0f, 1700.0f, 1000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f,
+                1700.0f, 1000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f}; // 60 values array
+    }
+    else
+    {
+        std::cerr << "Error: Unsupported number of accounts. Please choose either 3, 10, 20, or 60. Exiting...\n";
+        exit(1);
+    }
+}
+
 void single_deposit(std::map<int, float> &bankAccounts, int account1, int account2, float amount)
 {
     // check if the account1 has enough funds (greater than amount)
@@ -37,18 +72,17 @@ void single_deposit(std::map<int, float> &bankAccounts, int account1, int accoun
 void deposit(std::map<int, float> &bankAccounts, int account1, int account2, float amount)
 {
     {
-        std::lock_guard<std::mutex> lock(bankMutex); // Lock everything
         // check if account1 has enough funds (greater than 5000)
         if (bankAccounts[account1] > amount)
         {
-            // // Deterministic, consistent order to avoid deadlock
-            // int low = std::min(account1, account2);
-            // int high = std::max(account1, account2);
+            // Deterministic, consistent order to avoid deadlock
+            int low = std::min(account1, account2);
+            int high = std::max(account1, account2);
 
-            // std::unique_lock<std::mutex> lock1(accountMutexes[low], std::defer_lock);
-            // std::unique_lock<std::mutex> lock2(accountMutexes[high], std::defer_lock);
+            std::unique_lock<std::mutex> lock1(accountMutexes[low], std::defer_lock);
+            std::unique_lock<std::mutex> lock2(accountMutexes[high], std::defer_lock);
 
-            // std::lock(lock1, lock2); // Prevent deadlocks by locking both
+            std::lock(lock1, lock2); // Prevent deadlocks by locking both
 
             // Perform the deposit only if there are sufficient funds
             bankAccounts[account1] -= amount;
@@ -69,8 +103,8 @@ float single_balance(std::map<int, float> &bankAccounts)
 
 float balance(std::map<int, float> &bankAccounts)
 {
-    std::lock_guard<std::mutex> lock(bankMutex); // Lock everything
-    // std::shared_lock<std::shared_mutex> lock(balanceMutex); // a shared lock for reading
+    // std::lock_guard<std::mutex> lock(bankMutex); // Lock everything
+    std::shared_lock<std::shared_mutex> lock(balanceMutex); // a shared lock for reading
     float total = 0.0f;
     for (const auto &account : bankAccounts)
     {
@@ -169,32 +203,19 @@ int main(int argc, char *argv[])
     std::cout << std::endl;
 
     // Step 2.0: creating different float arrays such that I can work with whichever one to see different contention effects
-    float changeThis3[3] = {40000.0f, 30000.0f, 30000.0f}; // 3 values array
-    float changeThis10[10] = {10000.0f, 8000.0f, 12000.0f, 9000.0f, 15000.0f,
-                              7000.0f, 13000.0f, 6000.0f, 11000.0f, 9000.0f}; // 10 values array
-    float changeThis20[20] = {5000.0f, 1000.0f, 4000.0f, 6000.0f, 5000.0f,
-                              4000.0f, 6000.0f, 4000.0f, 5000.0f, 2000.0f,
-                              4000.0f, 9000.0f, 5000.0f, 4000.0f, 5000.0f,
-                              5000.0f, 4000.0f, 6000.0f, 7000.0f, 9000.0f}; // 20 values array
-    float changeThis60[60] = {12400.0f, 2000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f,
-                              1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f, 1500.0f, 1200.0f,
-                              1800.0f, 2200.0f, 1700.0f, 1000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f,
-                              1700.0f, 1000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f,
-                              1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f, 2500.0f, 1200.0f,
-                              1800.0f, 2200.0f, 1700.0f, 1000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f,
-                              1700.0f, 1000.0f, 1500.0f, 1200.0f, 1800.0f, 2200.0f, 1700.0f, 1000.0f}; // 60 values array
+    std::vector<float> initialBalances = getInitialBalances(NUM_ACCOUNTS);
 
     // Step 2.1: choosing an array to use and populating it
-    float initialBalance = 0;
+    float initialBalanceSum = 0;
     for (int i = 0; i < NUM_ACCOUNTS; ++i)
     {
-        bankAccounts.insert({i + 1, changeThis60[i]});
-        initialBalance += changeThis60[i];
+        bankAccounts[i + 1] = initialBalances[i];
+        initialBalanceSum += initialBalances[i];
     }
     // Check if the sum is correct
-    if (initialBalance != 100000.0f)
+    if (initialBalanceSum != 100000.0f)
     {
-        std::cout << "Error: Initial balance is inconsistent!  " << static_cast<int>(initialBalance) << std::endl;
+        std::cout << "Error: Initial balance is inconsistent!  " << static_cast<int>(initialBalanceSum) << std::endl;
     }
 
     // Print the current configuration
