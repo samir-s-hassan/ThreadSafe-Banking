@@ -11,6 +11,7 @@
 #include <future>
 #include <shared_mutex>
 
+std::mutex bankMutex;                               // Coarse-grained mutex for all account operations
 std::shared_mutex balanceMutex;                     // mutex to protect balance calculation (coarse-grained)
 std::unordered_map<int, std::mutex> accountMutexes; // per-account mutex map (fine-grained)
 
@@ -35,21 +36,24 @@ void single_deposit(std::map<int, float> &bankAccounts, int account1, int accoun
 
 void deposit(std::map<int, float> &bankAccounts, int account1, int account2, float amount)
 {
-    // check if account1 has enough funds (greater than 5000)
-    if (bankAccounts[account1] > amount)
     {
-        // // Deterministic, consistent order to avoid deadlock
-        // int low = std::min(account1, account2);
-        // int high = std::max(account1, account2);
+        std::lock_guard<std::mutex> lock(bankMutex); // Lock everything
+        // check if account1 has enough funds (greater than 5000)
+        if (bankAccounts[account1] > amount)
+        {
+            // // Deterministic, consistent order to avoid deadlock
+            // int low = std::min(account1, account2);
+            // int high = std::max(account1, account2);
 
-        // std::unique_lock<std::mutex> lock1(accountMutexes[low], std::defer_lock);
-        // std::unique_lock<std::mutex> lock2(accountMutexes[high], std::defer_lock);
+            // std::unique_lock<std::mutex> lock1(accountMutexes[low], std::defer_lock);
+            // std::unique_lock<std::mutex> lock2(accountMutexes[high], std::defer_lock);
 
-        // std::lock(lock1, lock2); // Prevent deadlocks by locking both
+            // std::lock(lock1, lock2); // Prevent deadlocks by locking both
 
-        // Perform the deposit only if there are sufficient funds
-        bankAccounts[account1] -= amount;
-        bankAccounts[account2] += amount;
+            // Perform the deposit only if there are sufficient funds
+            bankAccounts[account1] -= amount;
+            bankAccounts[account2] += amount;
+        }
     }
 }
 
@@ -65,6 +69,7 @@ float single_balance(std::map<int, float> &bankAccounts)
 
 float balance(std::map<int, float> &bankAccounts)
 {
+    std::lock_guard<std::mutex> lock(bankMutex); // Lock everything
     // std::shared_lock<std::shared_mutex> lock(balanceMutex); // a shared lock for reading
     float total = 0.0f;
     for (const auto &account : bankAccounts)
