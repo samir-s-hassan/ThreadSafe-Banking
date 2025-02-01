@@ -5,7 +5,7 @@ FILE="hw1.cpp"
 OUTPUT="hw1"
 
 # Set the number of accounts and iterations
-NUM_ACCOUNTS=3
+NUM_ACCOUNTS=60
 NUM_ITERATIONS=1000000
 
 # Check if the file exists
@@ -33,7 +33,6 @@ if [[ $? -ne 0 ]]; then
 fi
 
 # Run the compiled program with different NUM_THREADS values
-./"$OUTPUT" "$NUM_ACCOUNTS" 1 "$NUM_ITERATIONS"
 ./"$OUTPUT" "$NUM_ACCOUNTS" 2 "$NUM_ITERATIONS"
 ./"$OUTPUT" "$NUM_ACCOUNTS" 4 "$NUM_ITERATIONS"
 ./"$OUTPUT" "$NUM_ACCOUNTS" 8 "$NUM_ITERATIONS"

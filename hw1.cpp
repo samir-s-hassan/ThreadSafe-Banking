@@ -183,8 +183,8 @@ int main(int argc, char *argv[])
     float initialBalance = 0;
     for (int i = 0; i < NUM_ACCOUNTS; ++i)
     {
-        bankAccounts.insert({i + 1, changeThis3[i]});
-        initialBalance += changeThis3[i];
+        bankAccounts.insert({i + 1, changeThis60[i]});
+        initialBalance += changeThis60[i];
     }
     // Check if the sum is correct
     if (initialBalance != 100000.0f)
