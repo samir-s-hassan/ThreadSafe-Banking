@@ -12,7 +12,6 @@
 #include <shared_mutex>
 #include <atomic>
 
-std::mutex globalBalanceMutex; // Use std::mutex instead of std::shared_mutex
 std::shared_mutex balanceMutex;
 std::unordered_map<int, std::mutex> accountMutexes; // Per-account mutex map (fine-grained)
 std::atomic<float> globalBalance = 100000.0f;       // Tracks global balance atomically
@@ -74,9 +73,6 @@ void single_deposit(std::map<int, float> &bankAccounts, int account1, int accoun
 
 void deposit(std::map<int, float> &bankAccounts, int account1, int account2, float amount)
 {
-    int low = std::min(account1, account2);
-    int high = std::max(account1, account2);
-
     std::unique_lock<std::mutex> lock1(accountMutexes[low], std::defer_lock);
     std::unique_lock<std::mutex> lock2(accountMutexes[high], std::defer_lock);
     std::lock(lock1, lock2);
