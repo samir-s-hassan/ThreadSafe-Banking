@@ -24,3 +24,19 @@ https://docs.google.com/spreadsheets/d/1mtUx7LQpBl23vn5DIu2pu2hS0-sxtfLj0VMvD3Qs
 - This was run on a Sunlab machine with 16 CPUs (try 'less /proc/cpuinfo'), therefore any configuration with a higher number of parallel threads won't produce an actual parallel execution
 - The Sunlab computers have a specific configuration that might not be replicable on other machines
 - fastlocks.cpp is not a working implementation but my idea was to keep track of the amount of threads checking the total balance. If this reached 0, I can do a deposit. Since I did not implement it, I cannot tell if it this type of synchronization would be both correct and achieve speedup.
+
+## License
+
+    Copyright 2025 Samir Hassan
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
