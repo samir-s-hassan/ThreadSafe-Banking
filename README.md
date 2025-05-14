@@ -1,4 +1,4 @@
-# ThreadSafe-Banking (hw1_bank)
+# ThreadSafe-Banking
 
 ## How to run
 
