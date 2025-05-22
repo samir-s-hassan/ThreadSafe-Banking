@@ -21,7 +21,7 @@ Example of a correct command: ./run_finelocks.sh 60
 
 View the chart:
 1. [On Google Sheets](https://docs.google.com/spreadsheets/d/1mtUx7LQpBl23vn5DIu2pu2hS0-sxtfLj0VMvD3Qsl6U/edit?usp=sharing)  
-2. [Download File](./charts/chart.xlsx)
+2. [Download File](./chart/chart.xlsx)
 
 Official submission with multiple plots, execution times, corresponding code, and more
 
