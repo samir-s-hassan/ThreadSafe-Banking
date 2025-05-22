@@ -1,5 +1,7 @@
 # ThreadSafe-Banking
 
+ThreadSafe-Banking is a course assignment project that explores different synchronization techniques in a multi-threaded banking system. The goal is to evaluate performance and correctness when handling concurrent operations (like transfers and balance checks) across multiple bank accounts.
+
 This project is part of a course assignment and is not licensed for public use.
 
 ## How to run
@@ -17,9 +19,11 @@ Example of a correct command: ./run_finelocks.sh 60
 
 ## Submission (Plots, etc.)
 
-Official submission with multiple plots, execution times, corresponding code, and more
+View the chart:
+1. [On Google Sheets](https://docs.google.com/spreadsheets/d/1mtUx7LQpBl23vn5DIu2pu2hS0-sxtfLj0VMvD3Qsl6U/edit?usp=sharing)  
+2. [Download File](./charts/chart.xlsx)
 
-https://docs.google.com/spreadsheets/d/1mtUx7LQpBl23vn5DIu2pu2hS0-sxtfLj0VMvD3Qsl6U/edit?usp=sharing
+Official submission with multiple plots, execution times, corresponding code, and more
 
 ## Notes
 
