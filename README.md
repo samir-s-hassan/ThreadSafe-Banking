@@ -1,5 +1,7 @@
 # ThreadSafe-Banking
 
+This project is part of a course assignment and is not licensed for public use.
+
 ## How to run
 
 ./run_nolocks.sh <num_accounts>  
